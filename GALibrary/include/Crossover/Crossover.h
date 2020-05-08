@@ -12,15 +12,14 @@ namespace EinsGAO
 	public:
 		Crossover(std::string type) : m_type(type)
 		{}
-		virtual ~Crossover() = 0;
+		virtual ~Crossover()
+		{}
 
 	public:
 		std::string GetType()
 		{
 			return m_type;
 		}
-
-
 	};
 }
 #endif // !_GA_CROSSOVER_H_

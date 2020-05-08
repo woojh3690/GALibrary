@@ -10,7 +10,8 @@ namespace EinsGAO
 	public:
 		SimpleCrossover() : Crossover(_GA_SIMPLECROSSOVER_H_)
 		{}
-		~SimpleCrossover() = 0;
+		~SimpleCrossover()
+		{}
 	};
 }
 #endif // !_GA_SIMPLECROSSOVER_H_

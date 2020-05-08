@@ -10,7 +10,7 @@ namespace EinsGAO
 	public:
 		StaticMutation() : Mutation(_GA_STATICMUTATION_H_)
 		{}
-		~StaticMutation() override
+		~StaticMutation()
 		{}
 	};
 }

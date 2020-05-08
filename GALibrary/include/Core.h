@@ -6,16 +6,31 @@
 #include <set>
 #include <tensor.h>
 #include <omp.h>
+#include <algorithm>
 
+// Selection
 #include "./Selection/Selection.h"
-#include "./Crossover/Crossover.h"
-#include "./Mutation/Mutation.h"
+#include "./Selection/RouletteWheelSelection.h"
 
-typedef const int& sint;
-typedef KDTLAB::Tensor<int> TensorI;
+// Crossover
+#include "./Crossover/Crossover.h"
+#include "./Crossover/SimpleCrossover.h"
+
+// Mutation
+#include "./Mutation/Mutation.h"
+#include "./Mutation/StaticMutation.h"
+
+using sint = const int&;
+using TensorI = KDTLAB::Tensor<int>;
 
 namespace EinsGAO
 {
+	struct Output
+	{
+		double loss;
+		TensorI param;
+	};
+
 	class GAOptimizer
 	{
 	private:
@@ -23,16 +38,23 @@ namespace EinsGAO
 		int m_GeneticLen;
 		int m_GeneticMin;
 		int m_GeneticMax;
+		bool m_overlap;
 
 		// 탐색 방법
-		unsigned int m_population;
+		int m_population;
 		Selection* select = nullptr; // 선택 연산자
 		Crossover* crossover = nullptr; // 교배 연산자
 		Mutation* mutation = nullptr; // 변이 연산자
-		TensorI gens;
+		TensorI m_gens;
 
 	public:
-		GAOptimizer() {}
+		GAOptimizer() 
+		{
+			select = new RouletteWheelSelection();
+			crossover = new SimpleCrossover();
+			mutation = new StaticMutation();
+		}
+
 		virtual ~GAOptimizer() 
 		{
 			if (select != nullptr)
@@ -54,28 +76,67 @@ namespace EinsGAO
 	public:
 		virtual double Loss(TensorI gen) = 0;
 
-		void SetGeneticEnv(sint len, int min, int max)
+		void SetGeneticEnv(sint len, int min, int max, bool overlap = false)
 		{
+			// 중복 허용이 안될때 유전자 경우의 수 계산
+			if (!overlap && len > (max - min + 1))
+			{
+				throw std::invalid_argument("Can't generate Genetic this envroment setting.");
+			}
+
 			m_GeneticLen = len;
 			m_GeneticMin = min;
 			m_GeneticMax = max;
+			m_overlap = false;
 		}
 
-		void search(sint population, sint maxGeneration, bool minimizeLoss = true)
+		Output search(sint population, const double& targetLoss,
+			sint maxGeneration, bool minimizeLoss = true)
 		{
 			m_population = population;
-
-			gens = TensorI({ population, m_GeneticLen });
-			gens.randomInitInt(m_GeneticMin, m_GeneticMax);
-
-			vector<double> losses;
-			losses.resize(m_population);
-
-#pragma omp parallel for
-			for (int i = 0; i < gens.size(); i++)
+			Initialize_Gens();
+			std::cout << "초기 유전자" << std::endl;
+			for (auto item : m_gens)
 			{
-				losses[i] = Loss(gens[i]);
+				std::cout << item << std::endl;
 			}
+
+			for (int geration = 0; geration < maxGeneration; geration++)
+			{
+				// 적합도 계산
+				vector<double> losses;
+				losses.resize(m_population);
+#pragma omp parallel for
+				for (int i = 0; i < m_gens.size(); i++)
+				{
+					losses[i] = Loss(m_gens[i]);
+				}
+
+				// 조건 검사
+				for (std::size_t i = 0; i < losses.size(); i++)
+				{
+					if ((losses[i] < targetLoss) == minimizeLoss)
+					{
+						return { losses[i], m_gens[i] };
+					}
+				}
+
+				// 정렬
+				vector<double> sorted_losses(losses.begin(), losses.end());
+				std::sort(sorted_losses.begin(), sorted_losses.end());
+
+				vector<vector<int>> test = { {1,2}, {0, 4}, {3,4} };
+				std::sort(m_gens.begin(), m_gens.end(), [](const TensorI& a, const TensorI& b) {
+					return a[0].value() > b[1].value();
+				});
+				// 선택
+				//select.
+
+				// 교배
+
+				// 돌연변이
+			}
+
 		}
 
 		void SetSelection(Selection* select)
@@ -91,6 +152,87 @@ namespace EinsGAO
 		void SetMutation(Mutation* mutation)
 		{
 			this->mutation = mutation;
+		}
+
+	private:
+		void Initialize_Gens()
+		{
+			// 유전자 풀 경우의 수 조건 검사
+			int g_range = m_GeneticMax - m_GeneticMin + 1;
+			int sum = Factorial(g_range);
+			int mother = Factorial(g_range - m_GeneticLen);
+			int numOfCases = sum / mother;
+
+			if (numOfCases < m_population)
+			{
+				throw std::invalid_argument("Too much population!");
+			}
+
+			random_device rn;
+			mt19937_64 rnd(rn());
+			uniform_int_distribution<int> range(m_GeneticMin, m_GeneticMax);
+
+			m_gens.clear();
+
+			// 유전자 풀 생성 루프
+			for (int i = 0; i < m_population; i++)
+			{
+				// 유전자 생성 루프
+				TensorI new_gen;
+				for (int j = 0; j < m_GeneticLen; j++)
+				{
+					int ranNum = range(rnd);
+
+					// 중복허용이 아닐 경우
+					if (!m_overlap)
+					{
+						// new_gen 에서 중복 검사
+						bool overlap = false;
+						for (auto item : new_gen)
+						{
+							if (item.value() == ranNum)
+							{
+								overlap = true;
+								break;
+							}
+						}
+
+						if (overlap)
+							j--; // 중복이라면 루프 다시 반복 아니면
+						else
+							new_gen.append(ranNum); // 중복이 아니라면 유전자에 할당
+					}
+					else
+					{
+						new_gen.append(ranNum);
+					}
+				}
+
+				// 유전자 중복 검사
+				bool overlap = false;
+				for (auto gen : m_gens)
+				{
+					if (gen == new_gen)
+					{
+						overlap = true;
+						i--;
+						break;
+					}
+				}
+
+				if (!overlap)
+				{
+					m_gens.append(new_gen);
+				}
+			}
+		}
+
+		int Factorial(int num)
+		{
+			int factorial = 1;
+			for (int i = 1; i <= num; i++)
+				factorial *= i;
+			return factorial;
 		}
 	};
 }

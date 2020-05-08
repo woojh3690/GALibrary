@@ -13,7 +13,8 @@ namespace EinsGAO
 	public:
 		Selection(std::string type) : m_type(type)
 		{}
-		virtual ~Selection() = 0;
+		virtual ~Selection()
+		{}
 
 	public:
 		std::string GetType()

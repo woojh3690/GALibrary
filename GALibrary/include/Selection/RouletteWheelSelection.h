@@ -10,7 +10,7 @@ namespace EinsGAO
 	public:
 		RouletteWheelSelection() : Selection(_GA_ROULETTEWHEEL_H_)
 		{}
-		~RouletteWheelSelection() override
+		~RouletteWheelSelection()
 		{}
 
 	};

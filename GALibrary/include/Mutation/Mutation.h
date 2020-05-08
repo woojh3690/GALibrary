@@ -13,7 +13,8 @@ namespace EinsGAO
 	public:
 		Mutation(std::string name) : m_type(name)
 		{}
-		virtual ~Mutation() = 0;
+		virtual ~Mutation()
+		{}
 
 	public:
 		std::string GetType()

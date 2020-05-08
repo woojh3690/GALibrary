@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <string>
 #include "include/GAOptimizer.h"
-#include <Windows.h>
 
 std::string exec(const char* cmd) {
 	char buffer[128];
@@ -66,6 +65,6 @@ public:
 int main()
 {
 	TravelOptimizer a;
-	a.SetGeneticEnv(4, 0, 4);
-	a.search(16, 999);
+	a.SetGeneticEnv(5, 0, 4);
+	EinsGAO::Output output = a.search(16, 0, 100);
 }
