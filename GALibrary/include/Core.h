@@ -21,7 +21,7 @@
 #include "./Mutation/StaticMutation.h"
 
 using sint = const int&;
-using TensorI = KDTLAB::Tensor<int>;
+using TensorI = KDTLAB::Tensor<double>;
 
 namespace EinsGAO
 {
@@ -104,8 +104,7 @@ namespace EinsGAO
 			for (int geration = 0; geration < maxGeneration; geration++)
 			{
 				// 적합도 계산
-				vector<double> losses;
-				losses.resize(m_population);
+				TensorI losses({ population, 1 });
 #pragma omp parallel for
 				for (int i = 0; i < m_gens.size(); i++)
 				{
@@ -117,24 +116,35 @@ namespace EinsGAO
 				{
 					if ((losses[i] < targetLoss) == minimizeLoss)
 					{
-						return { losses[i], m_gens[i] };
+						return { losses[i].value(), m_gens[i] };
 					}
 				}
 
-				// 정렬
-				vector<double> sorted_losses(losses.begin(), losses.end());
-				std::sort(sorted_losses.begin(), sorted_losses.end());
+				TensorI lossAndGen;
+				for (int i = 0; i < population; ++i)
+				{
+					TensorI row_loss = losses[i];
+					TensorI row_gen = m_gens[i];
+					for (auto item_gen : row_gen)
+					{
+						row_loss.append(item_gen.value());
+					}
+					lossAndGen.append(row_loss);
+				}
 
-				vector<vector<int>> test = { {1,2}, {0, 4}, {3,4} };
-				std::sort(m_gens.begin(), m_gens.end(), [](const TensorI& a, const TensorI& b) {
-					return a[0].value() > b[1].value();
+
+
+				std::sort(lossAndGen.begin(), lossAndGen.end(), [](TensorI a, TensorI b) {
+					return a[0].value() < b[0].value();
 				});
+
 				// 선택
 				//select.
 
 				// 교배
 
 				// 돌연변이
+				std::cout << lossAndGen << std::endl;
 			}
 
 		}
