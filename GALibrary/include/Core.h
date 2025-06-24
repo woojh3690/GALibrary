@@ -34,17 +34,17 @@ namespace EinsGAO
 	class GAOptimizer
 	{
 	private:
-		// À¯ÀüÀÚ È¯°æ º¯¼ö
+		// ìœ ì „ìž í™˜ê²½ ë³€ìˆ˜
 		int m_GeneticLen;
 		int m_GeneticMin;
 		int m_GeneticMax;
 		bool m_overlap;
 
-		// Å½»ö ¹æ¹ý
+		// íƒìƒ‰ ë°©ë²•
 		int m_population;
-		Selection* select = nullptr; // ¼±ÅÃ ¿¬»êÀÚ
-		Crossover* crossover = nullptr; // ±³¹è ¿¬»êÀÚ
-		Mutation* mutation = nullptr; // º¯ÀÌ ¿¬»êÀÚ
+		Selection* select = nullptr; // ì„ íƒ ì—°ì‚°ìž
+		Crossover* crossover = nullptr; // êµë°° ì—°ì‚°ìž
+		Mutation* mutation = nullptr; // ë³€ì´ ì—°ì‚°ìž
 		TensorI m_gens;
 
 	public:
@@ -78,7 +78,7 @@ namespace EinsGAO
 
 		void SetGeneticEnv(sint len, int min, int max, bool overlap = false)
 		{
-			// Áßº¹ Çã¿ëÀÌ ¾ÈµÉ¶§ À¯ÀüÀÚ °æ¿ìÀÇ ¼ö °è»ê
+			m_overlap = overlap;
 			if (!overlap && len > (max - min + 1))
 			{
 				throw std::invalid_argument("Can't generate Genetic this envroment setting.");
@@ -95,7 +95,7 @@ namespace EinsGAO
 		{
 			m_population = population;
 			Initialize_Gens();
-			std::cout << "ÃÊ±â À¯ÀüÀÚ" << std::endl;
+			std::cout << "ì´ˆê¸° ìœ ì „ìž" << std::endl;
 			for (auto item : m_gens)
 			{
 				std::cout << item << std::endl;
@@ -103,7 +103,7 @@ namespace EinsGAO
 
 			for (int geration = 0; geration < maxGeneration; geration++)
 			{
-				// ÀûÇÕµµ °è»ê
+				// ì í•©ë„ ê³„ì‚°
 				TensorI losses({ population, 1 });
 #pragma omp parallel for
 				for (int i = 0; i < m_gens.size(); i++)
@@ -111,7 +111,7 @@ namespace EinsGAO
 					losses[i] = Loss(m_gens[i]);
 				}
 
-				// Á¶°Ç °Ë»ç
+				// ì¡°ê±´ ê²€ì‚¬
 				for (std::size_t i = 0; i < losses.size(); i++)
 				{
 					if ((losses[i] < targetLoss) == minimizeLoss)
@@ -138,12 +138,12 @@ namespace EinsGAO
 					return a[0].value() < b[0].value();
 				});
 
-				// ¼±ÅÃ
+				// ì„ íƒ
 				//select.
 
-				// ±³¹è
+				// êµë°°
 
-				// µ¹¿¬º¯ÀÌ
+				// ëŒì—°ë³€ì´
 				std::cout << lossAndGen << std::endl;
 			}
 
@@ -167,7 +167,7 @@ namespace EinsGAO
 	private:
 		void Initialize_Gens()
 		{
-			// À¯ÀüÀÚ Ç® °æ¿ìÀÇ ¼ö Á¶°Ç °Ë»ç
+			// ìœ ì „ìž í’€ ê²½ìš°ì˜ ìˆ˜ ì¡°ê±´ ê²€ì‚¬
 			int g_range = m_GeneticMax - m_GeneticMin + 1;
 			int sum = Factorial(g_range);
 			int mother = Factorial(g_range - m_GeneticLen);
@@ -184,19 +184,19 @@ namespace EinsGAO
 
 			m_gens.clear();
 
-			// À¯ÀüÀÚ Ç® »ý¼º ·çÇÁ
+			// ìœ ì „ìž í’€ ìƒì„± ë£¨í”„
 			for (int i = 0; i < m_population; i++)
 			{
-				// À¯ÀüÀÚ »ý¼º ·çÇÁ
+				// ìœ ì „ìž ìƒì„± ë£¨í”„
 				TensorI new_gen;
 				for (int j = 0; j < m_GeneticLen; j++)
 				{
 					int ranNum = range(rnd);
 
-					// Áßº¹Çã¿ëÀÌ ¾Æ´Ò °æ¿ì
+					// ì¤‘ë³µí—ˆìš©ì´ ì•„ë‹ ê²½ìš°
 					if (!m_overlap)
 					{
-						// new_gen ¿¡¼­ Áßº¹ °Ë»ç
+						// new_gen ì—ì„œ ì¤‘ë³µ ê²€ì‚¬
 						bool overlap = false;
 						for (auto item : new_gen)
 						{
@@ -208,9 +208,9 @@ namespace EinsGAO
 						}
 
 						if (overlap)
-							j--; // Áßº¹ÀÌ¶ó¸é ·çÇÁ ´Ù½Ã ¹Ýº¹ ¾Æ´Ï¸é
+							j--; // ì¤‘ë³µì´ë¼ë©´ ë£¨í”„ ë‹¤ì‹œ ë°˜ë³µ ì•„ë‹ˆë©´
 						else
-							new_gen.append(ranNum); // Áßº¹ÀÌ ¾Æ´Ï¶ó¸é À¯ÀüÀÚ¿¡ ÇÒ´ç
+							new_gen.append(ranNum); // ì¤‘ë³µì´ ì•„ë‹ˆë¼ë©´ ìœ ì „ìžì— í• ë‹¹
 					}
 					else
 					{
@@ -218,7 +218,7 @@ namespace EinsGAO
 					}
 				}
 
-				// À¯ÀüÀÚ Áßº¹ °Ë»ç
+				// ìœ ì „ìž ì¤‘ë³µ ê²€ì‚¬
 				bool overlap = false;
 				for (auto gen : m_gens)
 				{
