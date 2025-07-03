@@ -2,24 +2,26 @@
 #include <stdexcept>
 #include <stdio.h>
 #include <string>
+#include <array>
+#include <memory>
 #include "include/GAOptimizer.h"
 
 std::string exec(const char* cmd) {
-	char buffer[128];
-	std::string result = "";
-	FILE* pipe = _popen(cmd, "r");
-	if (!pipe) throw std::runtime_error("popen() failed!");
-	try {
-		while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
-			result += buffer;
-		}
-	}
-	catch (...) {
-		_pclose(pipe);
-		throw;
-	}
-	_pclose(pipe);
-	return result;
+        std::array<char, 128> buffer{};
+        std::string result;
+#if defined(_WIN32)
+        std::unique_ptr<FILE, decltype(&_pclose)> pipe(_popen(cmd, "r"), _pclose);
+#else
+        std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+#endif
+        if (!pipe)
+                throw std::runtime_error("popen() failed!");
+
+        while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+                result += buffer.data();
+        }
+
+        return result;
 }
 
 class TravelOptimizer : public EinsGAO::GAOptimizer
