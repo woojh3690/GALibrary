@@ -7,6 +7,9 @@
 #include <tensor.h>
 #include <omp.h>
 #include <algorithm>
+#include <memory>
+#include <limits>
+#include <cassert>
 
 // Selection
 #include "./Selection/Selection.h"
@@ -42,83 +45,79 @@ namespace EinsGAO
 
 		// 탐색 방법
 		int m_population;
-		Selection* select = nullptr; // 선택 연산자
-		Crossover* crossover = nullptr; // 교배 연산자
-		Mutation* mutation = nullptr; // 변이 연산자
+                std::unique_ptr<Selection> select; // 선택 연산자
+                std::unique_ptr<Crossover> crossover; // 교배 연산자
+                std::unique_ptr<Mutation> mutation; // 변이 연산자
 		TensorI m_gens;
 
 	public:
-		GAOptimizer() 
-		{
-			select = new RouletteWheelSelection();
-			crossover = new SimpleCrossover();
-			mutation = new StaticMutation();
-		}
+                GAOptimizer()
+                    : select(std::make_unique<RouletteWheelSelection>()),
+                      crossover(std::make_unique<SimpleCrossover>()),
+                      mutation(std::make_unique<StaticMutation>())
+                {}
 
-		virtual ~GAOptimizer() 
-		{
-			if (select != nullptr)
-			{
-				delete select;
-			}
-
-			if (crossover != nullptr)
-			{
-				delete crossover;
-			}
-
-			if (mutation != nullptr)
-			{
-				delete mutation;
-			}
-		}
+                virtual ~GAOptimizer() = default;
 
 	public:
 		virtual double Loss(TensorI gen) = 0;
 
-		void SetGeneticEnv(sint len, int min, int max, bool overlap = false)
-		{
-			m_overlap = overlap;
-			if (!overlap && len > (max - min + 1))
-			{
-				throw std::invalid_argument("Can't generate Genetic this envroment setting.");
-			}
+                void SetGeneticEnv(sint len, int min, int max, bool overlap = false)
+                {
+                        m_overlap = overlap;
+                        if (!overlap && len > (max - min + 1))
+                        {
+                                throw std::invalid_argument("Can't generate Genetic this envroment setting.");
+                        }
 
-			m_GeneticLen = len;
-			m_GeneticMin = min;
-			m_GeneticMax = max;
-			m_overlap = false;
-		}
+                        m_GeneticLen = len;
+                        m_GeneticMin = min;
+                        m_GeneticMax = max;
+                        m_overlap = overlap;
+                }
 
-		Output search(sint population, const double& targetLoss,
-			sint maxGeneration, bool minimizeLoss = true)
-		{
-			m_population = population;
-			Initialize_Gens();
+                Output search(sint population, const double& targetLoss,
+                        sint maxGeneration, bool minimizeLoss = true)
+                {
+                        m_population = population;
+                        Initialize_Gens();
 			std::cout << "초기 유전자" << std::endl;
 			for (auto item : m_gens)
 			{
 				std::cout << item << std::endl;
 			}
 
-			for (int geration = 0; geration < maxGeneration; geration++)
-			{
-				// 적합도 계산
-				TensorI losses({ population, 1 });
+                        TensorI bestGen;
+                        double bestLoss = minimizeLoss ? std::numeric_limits<double>::infinity()
+                                                     : -std::numeric_limits<double>::infinity();
+
+                        for (int geration = 0; geration < maxGeneration; geration++)
+                        {
+                                // 적합도 계산
+                                TensorI losses({ population, 1 });
 #pragma omp parallel for
-				for (int i = 0; i < m_gens.size(); i++)
-				{
-					losses[i] = Loss(m_gens[i]);
-				}
+                                for (int i = 0; i < m_gens.size(); i++)
+                                {
+                                        losses[i] = Loss(m_gens[i]);
+                                }
 
 				// 조건 검사
-				for (std::size_t i = 0; i < losses.size(); i++)
-				{
-					if ((losses[i] < targetLoss) == minimizeLoss)
-					{
-						return { losses[i].value(), m_gens[i] };
-					}
-				}
+                                for (std::size_t i = 0; i < losses.size(); i++)
+                                {
+                                        double lossVal = losses[i].value();
+                                        if ((minimizeLoss && lossVal < targetLoss) ||
+                                            (!minimizeLoss && lossVal > targetLoss))
+                                        {
+                                                return { lossVal, m_gens[i] };
+                                        }
+
+                                        if ((minimizeLoss && lossVal < bestLoss) ||
+                                            (!minimizeLoss && lossVal > bestLoss))
+                                        {
+                                                bestLoss = lossVal;
+                                                bestGen = m_gens[i];
+                                        }
+                                }
 
 				TensorI lossAndGen;
 				for (int i = 0; i < population; ++i)
@@ -144,25 +143,26 @@ namespace EinsGAO
 				// 교배
 
 				// 돌연변이
-				std::cout << lossAndGen << std::endl;
-			}
+                                std::cout << lossAndGen << std::endl;
+                        }
 
-		}
+                        return { bestLoss, bestGen };
+                }
 
-		void SetSelection(Selection* select)
-		{
-			this->select = select;
-		}
+                void SetSelection(std::unique_ptr<Selection> select)
+                {
+                        this->select = std::move(select);
+                }
 
-		void SetCrossover(Crossover* crossover)
-		{
-			this->crossover = crossover;
-		}
+                void SetCrossover(std::unique_ptr<Crossover> crossover)
+                {
+                        this->crossover = std::move(crossover);
+                }
 
-		void SetMutation(Mutation* mutation)
-		{
-			this->mutation = mutation;
-		}
+                void SetMutation(std::unique_ptr<Mutation> mutation)
+                {
+                        this->mutation = std::move(mutation);
+                }
 
 	private:
 		void Initialize_Gens()
@@ -178,9 +178,9 @@ namespace EinsGAO
 				throw std::invalid_argument("Too much population!");
 			}
 
-			random_device rn;
-			mt19937_64 rnd(rn());
-			uniform_int_distribution<int> range(m_GeneticMin, m_GeneticMax);
+                        std::random_device rn;
+                        std::mt19937_64 rnd(rn());
+                        std::uniform_int_distribution<int> range(m_GeneticMin, m_GeneticMax);
 
 			m_gens.clear();
 
